@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <stdio.h>
-
+#include <unistd.h>
 /**
  * [HOW TO USE]
  *
@@ -51,18 +51,36 @@ static void	print_alloc_status(int count, size_t size, size_t total, const char 
 
 void *malloc(size_t size)
 {
-	static void *(*real_malloc)(size_t);
-	static size_t used_memory = 0;
-	static int count = 0;
+	static void 		*(*real_malloc)(size_t);
+	static size_t 		used_memory = 0;
+	static int 		 	count = 0;
+	static u_int64_t 	heap_limit = 0;
 
 	if (!real_malloc)
 	{
 		real_malloc = dlsym(RTLD_NEXT, "malloc");
 		srand((unsigned int)(size_t)real_malloc);
 	}
+	if (!heap_limit)
+		heap_limit = (u_int64_t)real_malloc(0x10);
 
 	if (!getenv("MALLOC_TESTER_ENABLE"))
 		return real_malloc(size);
+
+
+	u_int64_t	reference = 0xdeaddead;	
+    __asm__ ( 
+				".intel_syntax noprefix;\n"
+
+			  	"mov rax, [rbp + 0x8];\n"
+				"mov [rsp + 0x28], rax\n"
+
+				".att_syntax;\n"
+    );
+
+	if (reference > heap_limit) {
+		return real_malloc(size);
+	}
 
 	int skip_count = parse_env("MALLOC_SKIP_COUNT", SKIP_COUNT_DEFAULT);
 	int max_calls = parse_env("MALLOC_MAX_CALLS", MAX_CALLS_DEFAULT);

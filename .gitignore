@@ -1,1 +1,4 @@
 malloc_tester.so
+*.out
+.gdb_history
+.vscode/
