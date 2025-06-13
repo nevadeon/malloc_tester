@@ -7,14 +7,14 @@
  * [HOW TO USE]
  *
  * compile command
- * gcc -fPIC -shared -o malloc_fail.so malloc_fail.c -ldl
+ * gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl
  *
  * execution command
- * LD_PRELOAD=./malloc_fail.so ./program_to_test
+ * LD_PRELOAD=./malloc_tester.so ./program_to_test
  *
  * gdb usage
  * add ```setenv("MALLOC_TESTER_ENABLE", "1", 1);``` at the beginning of main
- * and run LD_PRELOAD=./malloc_fail.so gdb ./program_to_test
+ * and run LD_PRELOAD=./malloc_tester.so gdb ./program_to_test
  *
  *
  * [OPTIONS]
