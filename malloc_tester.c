@@ -28,7 +28,7 @@
 #define SKIP_COUNT_DEFAULT 0
 #define MAX_CALLS_DEFAULT -1
 #define MAX_MEMORY_DEFAULT -1
-#define FAIL_PERCENT_DEFAULT 0
+#define FAIL_PERCENT_DEFAULT 20
 #define PRINT_BOOL_DEFAULT 1
 
 static int malloc_active = 0;
@@ -68,7 +68,7 @@ void *malloc(size_t size)
 		return real_malloc(size);
 
 
-	u_int64_t	reference = 0xdeaddead;
+	u_int64_t	reference = 0xdeaddead;	
     __asm__ ( 
 				".intel_syntax noprefix;\n"
 
