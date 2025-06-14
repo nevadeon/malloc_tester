@@ -1,4 +1,3 @@
-#include <linux/limits.h>
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <dlfcn.h>

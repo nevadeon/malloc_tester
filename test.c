@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void caller_1(void)
+void function_1(void)
 {
 	void *ptr;
 
@@ -10,7 +10,7 @@ void caller_1(void)
 		free(ptr);
 }
 
-void caller_2(void)
+void function_2(void)
 {
 	void *ptr;
 
@@ -19,7 +19,7 @@ void caller_2(void)
 		free(ptr);
 }
 
-void caller_3(void)
+void function_3(void)
 {
 	void *ptr;
 
@@ -31,9 +31,9 @@ void caller_3(void)
 int main(int argc, char const *argv[])
 {
 	printf("=== test start ===\n");
-	caller_1();
-	caller_2();
-	caller_3();
+	function_1();
+	function_2();
+	function_3();
 	printf("===  test end  ===\n");
 	return 0;
 }
