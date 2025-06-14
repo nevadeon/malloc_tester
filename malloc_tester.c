@@ -55,11 +55,18 @@ const char *rejected_symbols[] = {
 	NULL
 };
 
-static void print_alloc_status(int count, size_t size, size_t total, const char *status, const char *caller)
+static void print_alloc_status(
+	int count,
+	size_t size,
+	size_t total,
+	const char *status,
+	const char *caller,
+	void *caller_address
+)
 {
 	fprintf(stderr,
-		"[malloc] call #%-3d | size: %-5zu | total: %-6zu | from: %-20s | %s\n",
-		count, size, total, caller ? caller : "unknown", status);
+		"[malloc] call #%-3d | size: %-5zu | total: %-6zu | from: (%p) %-20s | %s\n",
+		count, size, total, caller_address, caller ? caller : "unknown", status);
 }
 
 static bool is_injection_allowed(Dl_info info)
@@ -118,22 +125,21 @@ void *malloc(size_t size)
 	count++;
 
 	if (malloc_cfg.max_calls >= 0 && count > malloc_cfg.max_calls) {
-		print_alloc_status(count, size, used_memory, "DENIED (max alloc)", info.dli_sname);
+		print_alloc_status(count, size, used_memory, "DENIED (max alloc)", info.dli_sname, caller);
 		return NULL;
 	}
 
 	if (malloc_cfg.max_memory >= 0 && used_memory > malloc_cfg.max_memory) {
-		print_alloc_status(count, size, used_memory, "DENIED (max memory)", info.dli_sname);
+		print_alloc_status(count, size, used_memory, "DENIED (max memory)", info.dli_sname, caller);
 		return NULL;
 	}
 
-	if (malloc_cfg.fail_percent >= 0 &&
-		(rand() % 100) < malloc_cfg.fail_percent) {
-		print_alloc_status(count, size, used_memory, "DENIED (random failure)", info.dli_sname);
+	if (malloc_cfg.fail_percent >= 0 && (rand() % 100) < malloc_cfg.fail_percent) {
+		print_alloc_status(count, size, used_memory, "DENIED (random failure)", info.dli_sname, caller);
 		return NULL;
 	}
 
 	used_memory += size;
-	print_alloc_status(count, size, used_memory, "ALLOWED", info.dli_sname);
+	print_alloc_status(count, size, used_memory, "ALLOWED", info.dli_sname, caller);
 	return real_malloc(size);
 }
