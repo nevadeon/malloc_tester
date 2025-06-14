@@ -1,124 +1,136 @@
+#include <linux/limits.h>
 #define _GNU_SOURCE
 #include <stdlib.h>
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdbool.h>
+#include <limits.h>
+
 /**
- * [HOW TO USE]
+ * ┌────────────────────────────────────────────────────────────┐
+ * │                         HOW TO USE                         │
+ * └────────────────────────────────────────────────────────────┘
  *
- * compile command
- * gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl
+ * /!\ REQUIREMENT /!\
+ * Ensure the target program is compiled with debugging and symbol info:
+ *     -rdynamic -g
  *
- * execution command
- * LD_PRELOAD=./malloc_tester.so ./program_to_test
+ * Compile malloc tester:
+ *     gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
  *
- * gdb usage
- * add ```setenv("MALLOC_TESTER_ENABLE", "1", 1);``` at the beginning of main
- * and run LD_PRELOAD=./malloc_tester.so gdb ./program_to_test
+ * Run the target binary with injection:
+ *     LD_PRELOAD=./malloc_tester.so ./your_program
  *
+ * Run in GDB:
+ *     LD_PRELOAD=./malloc_tester.so gdb ./your_program
  *
- * [OPTIONS]
- * MALLOC_SKIP_COUNT   — skip first N allocations
- * MALLOC_MAX_CALLS    — fail all calls after N total allocations
- * MALLOC_MAX_MEMORY   — fail all calls after N total allocated bytes
- * MALLOC_FAIL_PERCENT — fail each call with N% probability
- * MALLOC_PRINT        — print log in stderr
+ * Configuration can be modified live during GDB execution:
+ *     set malloc_cfg.max_calls = <int>
+ *     set malloc_cfg.fail_percent = <int>
+ *     set malloc_cfg.max_memory = <int>
+ *
+ * Default values are set using structs. See bellow
  */
 
-#define SKIP_COUNT_DEFAULT 0
-#define MAX_CALLS_DEFAULT -1
-#define MAX_MEMORY_DEFAULT -1
-#define FAIL_PERCENT_DEFAULT 20
-#define PRINT_BOOL_DEFAULT 1
+struct malloc_cfg {
+	int max_calls;
+	int max_memory;
+	int fail_percent;
+};
 
-static int malloc_active = 0;
+struct malloc_cfg malloc_cfg = {
+	.max_calls = -1,     // Maximum number of allocations (-1 = unlimited)
+	.max_memory = -1,    // Maximum available bytes for allocations (-1 = unlimited)
+	.fail_percent = 0    // Fail probability (0–100)
+};
 
-static int	parse_env(const char *name, int default_value)
+// If a function name contains any of these strings it will be ignored
+const char *rejected_symbols[] = {
+	"mlx",
+	NULL
+};
+
+static void print_alloc_status(int count, size_t size, size_t total, const char *status, const char *caller)
 {
-	char *value;
-
-	value = getenv(name);
-	if (value)
-		return atoi(value);
-	return default_value;
+	fprintf(stderr,
+		"[malloc] call #%-3d | size: %-5zu | total: %-6zu | from: %-20s | %s\n",
+		count, size, total, caller ? caller : "unknown", status);
 }
 
-static void	print_alloc_status(int count, size_t size, size_t total, const char *status)
+static bool is_injection_allowed(Dl_info info)
 {
-	fprintf(stderr, "[malloc] call #%d | size: %zu | total: %zu | %s\n",
-		count, size, total, status);
+	char main_binary_path[PATH_MAX];
+	char caller_real_path[PATH_MAX];
+	int  i;
+
+	if (!realpath(info.dli_fname, caller_real_path))
+		return false;;
+	if (!realpath("/proc/self/exe", main_binary_path))
+		return false;;
+
+	// Reject if the caller is not from the main binary
+	if (strcmp(caller_real_path, main_binary_path) != 0)
+		return false;
+	
+	// Reject based on symbol name
+	if (info.dli_sname)
+	{
+		i = 0;
+		while(rejected_symbols[i]){
+			if (strstr(info.dli_sname, rejected_symbols[i]))
+				return false;
+			i++;
+		}
+	}
+
+	return true;
 }
 
 void *malloc(size_t size)
 {
-	static void 		*(*real_malloc)(size_t);
-	static size_t 		used_memory = 0;
-	static int 		 	count = 0;
-	static u_int64_t 	heap_limit = 0;
+	static void    *(*real_malloc)(size_t) = NULL;
+	static size_t   used_memory = 0;
+	static int      count = 0;
+	void 			*caller;
+	Dl_info 		info;
 
-	if (!real_malloc)
-	{
+	if (!real_malloc) {
 		real_malloc = dlsym(RTLD_NEXT, "malloc");
 		srand((unsigned int)(size_t)real_malloc);
 	}
-	if (!heap_limit)
-		heap_limit = (u_int64_t)real_malloc(0x10);
 
-	if (!getenv("MALLOC_TESTER_ENABLE"))
+	caller = __builtin_return_address(0);
+	if (!caller)
+		return real_malloc(size);
+	if (!dladdr(caller, &info))
 		return real_malloc(size);
 
-
-	u_int64_t	reference = 0xdeaddead;	
-    __asm__ ( 
-				".intel_syntax noprefix;\n"
-
-			  	"mov rax, [rbp + 0x8];\n"
-				"mov [rsp + 0x28], rax\n"
-
-				".att_syntax;\n"
-    );
-
-	if (reference > heap_limit) {
+	if (!is_injection_allowed(info))
 		return real_malloc(size);
-	}
-
-	int skip_count = parse_env("MALLOC_SKIP_COUNT", SKIP_COUNT_DEFAULT);
-	int max_calls = parse_env("MALLOC_MAX_CALLS", MAX_CALLS_DEFAULT);
-	int max_memory = parse_env("MALLOC_MAX_MEMORY", MAX_MEMORY_DEFAULT);
-	int fail_percent = parse_env("MALLOC_FAIL_PERCENT", FAIL_PERCENT_DEFAULT);
-	int print_alloc = parse_env("MALLOC_PRINT_BOOL", PRINT_BOOL_DEFAULT);
+	
+	// fprintf(stderr, "address=%p bin=%s name=%s\n", caller, info.dli_fname, info.dli_sname);
 
 	count++;
-	int effective_count = count - skip_count;
 
-	if (skip_count > 0 && count <= skip_count)
-		return real_malloc(size);
-
-	if (max_calls >= 0 && effective_count > max_calls)
-	{
-		if (print_alloc)
-			print_alloc_status(count, size, used_memory, "DENIED (max alloc)");
+	if (malloc_cfg.max_calls >= 0 && count > malloc_cfg.max_calls) {
+		print_alloc_status(count, size, used_memory, "DENIED (max alloc)", info.dli_sname);
 		return NULL;
 	}
 
-	if (max_memory >= 0 && used_memory > max_memory)
-	{
-		if (print_alloc)
-			print_alloc_status(count, size, used_memory, "DENIED (max memory)");
+	if (malloc_cfg.max_memory >= 0 && used_memory > malloc_cfg.max_memory) {
+		print_alloc_status(count, size, used_memory, "DENIED (max memory)", info.dli_sname);
 		return NULL;
 	}
 
-	if (fail_percent >= 0 && (rand() % 100) < fail_percent)
-	{
-		if (print_alloc)
-			print_alloc_status(count, size, used_memory, "DENIED (random failure)");
+	if (malloc_cfg.fail_percent >= 0 &&
+		(rand() % 100) < malloc_cfg.fail_percent) {
+		print_alloc_status(count, size, used_memory, "DENIED (random failure)", info.dli_sname);
 		return NULL;
 	}
 
 	used_memory += size;
-
-	if (print_alloc)
-		print_alloc_status(count, size, used_memory, "ALLOWED");
-
+	print_alloc_status(count, size, used_memory, "ALLOWED", info.dli_sname);
 	return real_malloc(size);
 }
