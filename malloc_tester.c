@@ -13,28 +13,34 @@
  * │                         HOW TO USE                         │
  * └────────────────────────────────────────────────────────────┘
  *
- * /!\ REQUIREMENT /!\
- * Ensure the target program is compiled with debugging and symbol info:
- *     -rdynamic -g
+ * REQUIREMENTS:
+ * For best results, compile the target program using `gcc` with debug symbols:
+ *     gcc -rdynamic -g target.c -o target_program
  *
- * If you are lazy (and you should be) use the script
- *     ./run_tester.sh target_program [args]
+ * RECOMMENDED:
+ * Use the provided script to simplify setup and execution:
+ *     ./run_tester.sh target_program [args...]
+ *     ./run_tester.sh gdb target_program [args...]
  *
  * Compile the tester:
  *     gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
  *
  * Run the tester:
- *     LD_PRELOAD=./malloc_tester.so ./target_program
+ *     LD_PRELOAD=./malloc_tester.so TARGET_BIN=./target_program ./target_program
  *
  * Run in GDB:
- *     LD_PRELOAD=./malloc_tester.so gdb ./target_program
+ *     LD_PRELOAD=./malloc_tester.so TARGET_BIN=./target_program gdb ./target_program
  *
  * Configuration can be modified live during GDB execution:
  *     set malloc_cfg.max_calls = <int>
  *     set malloc_cfg.fail_percent = <int>
  *     set malloc_cfg.max_memory = <int>
  *
- * Default values are set using structs. See bellow
+ * Configuration options
+ * 	   max_calls        - maximum number of allocations (-1 = unlimited)
+ *     max_memory       - maximum available bytes for allocations (-1 = unlimited)
+ *     fail_percent     - fail probability (0–100)
+ *     rejected_symbols - ignored function calls
  */
 
 struct malloc_cfg {
@@ -44,14 +50,15 @@ struct malloc_cfg {
 };
 
 struct malloc_cfg malloc_cfg = {
-	.max_calls = -1,     // Maximum number of allocations (-1 = unlimited)
-	.max_memory = -1,    // Maximum available bytes for allocations (-1 = unlimited)
-	.fail_percent = 0    // Fail probability (0–100)
+	.max_calls = -1,
+	.max_memory = -1,
+	.fail_percent = 0
 };
 
-// If a function name contains any of these strings it will be ignored
+// If a function caller name contains any of these strings it will be ignored
 const char *rejected_symbols[] = {
 	"mlx",
+	"MLX",
 	NULL
 };
 
@@ -71,26 +78,31 @@ static void print_alloc_status(
 
 static bool is_injection_allowed(Dl_info info)
 {
-	char main_binary_path[PATH_MAX];
-	char caller_real_path[PATH_MAX];
+	const char *target_binary;
+	char caller_path[PATH_MAX];
+	char target_path[PATH_MAX];
 	int  i;
 
-	if (!realpath(info.dli_fname, caller_real_path))
-		return false;;
-	if (!realpath("/proc/self/exe", main_binary_path))
-		return false;;
-
-	// Reject if the caller is not from the main binary
-	if (strcmp(caller_real_path, main_binary_path) != 0)
+	target_binary = getenv("TARGET_BIN");
+	if (!target_binary)
 		return false;
-	
+	if (!realpath(target_binary, target_path))
+		return false;
+	if (!realpath("/proc/self/exe", caller_path))
+		return false;
+	// fprintf(stderr, "caller=%s target=%s\n", caller_path, target_path);
+
+	// Reject if the caller is not from the target binary
+	if (strcmp(caller_path, target_path) != 0)
+		return false;
+
 	// Reject based on symbol name
 	if (info.dli_sname)
 	{
 		i = 0;
 		while(rejected_symbols[i]){
 			if (strstr(info.dli_sname, rejected_symbols[i]))
-				return false;
+			return false;
 			i++;
 		}
 	}
@@ -116,10 +128,9 @@ void *malloc(size_t size)
 		return real_malloc(size);
 	if (!dladdr(caller, &info))
 		return real_malloc(size);
-
 	if (!is_injection_allowed(info))
 		return real_malloc(size);
-	
+
 	// fprintf(stderr, "address=%p bin=%s name=%s\n", caller, info.dli_fname, info.dli_sname);
 
 	count++;
@@ -128,12 +139,10 @@ void *malloc(size_t size)
 		print_alloc_status(count, size, used_memory, "DENIED (max alloc)", info.dli_sname, caller);
 		return NULL;
 	}
-
 	if (malloc_cfg.max_memory >= 0 && used_memory > malloc_cfg.max_memory) {
 		print_alloc_status(count, size, used_memory, "DENIED (max memory)", info.dli_sname, caller);
 		return NULL;
 	}
-
 	if (malloc_cfg.fail_percent >= 0 && (rand() % 100) < malloc_cfg.fail_percent) {
 		print_alloc_status(count, size, used_memory, "DENIED (random failure)", info.dli_sname, caller);
 		return NULL;
