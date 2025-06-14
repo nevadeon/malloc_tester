@@ -17,14 +17,17 @@
  * Ensure the target program is compiled with debugging and symbol info:
  *     -rdynamic -g
  *
- * Compile malloc tester:
+ * If you are lazy (and you should be) use the script
+ *     ./run_tester.sh target_program [args]
+ *
+ * Compile the tester:
  *     gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
  *
- * Run the target binary with injection:
- *     LD_PRELOAD=./malloc_tester.so ./your_program
+ * Run the tester:
+ *     LD_PRELOAD=./malloc_tester.so ./target_program
  *
  * Run in GDB:
- *     LD_PRELOAD=./malloc_tester.so gdb ./your_program
+ *     LD_PRELOAD=./malloc_tester.so gdb ./target_program
  *
  * Configuration can be modified live during GDB execution:
  *     set malloc_cfg.max_calls = <int>
