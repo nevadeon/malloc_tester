@@ -72,7 +72,7 @@ static void print_alloc_status(
 )
 {
 	fprintf(stderr,
-		"[malloc] call #%-3d | size: %-5zu | total: %-6zu | from: (%p) %-20s | %s\n",
+		"[malloc] call #%d | size: %-4zu | total: %-4zu | from: (%p) %s | %s\n",
 		count, size, total, caller_address, caller ? caller : "unknown", status);
 }
 
