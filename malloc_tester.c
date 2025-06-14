@@ -59,6 +59,7 @@ struct malloc_cfg malloc_cfg = {
 const char *rejected_symbols[] = {
 	"mlx",
 	"MLX",
+	"_IO_file_doallocate",
 	NULL
 };
 

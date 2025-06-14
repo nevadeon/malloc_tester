@@ -17,10 +17,10 @@ if [[ "$1" == "gdb" || "$1" == "pwndbg" ]]; then
 		echo "[error] You must provide a target when using gdb or pwndbg."
 		exit 1
 	fi
-	TARGET_BIN="$2"
+	TARGET="$2"
 else
-	TARGET_BIN="$1"
+	TARGET="$1"
 fi
 
 echo "[script] Running malloc tester with $1"
-LD_PRELOAD=./malloc_tester.so "$@"
+LD_PRELOAD=./malloc_tester.so TARGET_BIN="$TARGET" "$@"
