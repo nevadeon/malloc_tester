@@ -18,12 +18,12 @@
  *
  * REQUIREMENTS:
  * For best results, compile the target program using `gcc` with debug symbols:
- *     gcc -rdynamic -g...
+ *     cc -rdynamic -g...
  * If you use an external lib like mlx wrap the binary (.a file) inside a shared lib (.so file) with this command
- *     gcc -shared -o libwrapper.so -Wl,--whole-archive lib_to_wrap.a -Wl,--no-whole-archive
+ *     cc -shared -o libwrapper.so -Wl,--whole-archive lib_to_wrap.a -Wl,--no-whole-archive
  * And change you linker flags to include the shared lib
- *     LFLAGS = -L. -lmlxwrapper -Wl,-rpath,.
- *     LFLAGS = -Llib_folder -lmlxwrapper -Wl,-rpath,lib_folder
+ *     LFLAGS = -L. -lwrapper -Wl,-rpath,.
+ *     LFLAGS = -Llib_folder -lwrapper -Wl,-rpath,lib_folder
  * This is to avoid injecting lib malloc calls
  *
  * SCRIPT USAGE:
@@ -70,11 +70,6 @@ struct malloc_cfg malloc_cfg = {
 
 // If a function caller name contains any of these strings it will be ignored
 const char *ignored_function_names[] = {
-	"_IO_file_doallocate",
-	"gladLoadGLLoader",
-	"lodepng_load_file",
-	"lodepng_decode",
-	"mlx",
 	NULL
 };
 
