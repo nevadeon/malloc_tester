@@ -11,47 +11,6 @@
 #define GREEN   "\001\033[0;32m\002"
 #define RESET   "\001\033[0m\002"
 
-/**
- * ┌───────────────────────────────────────────────────────────────────────────┐
- * │                              HOW TO USE                                   │
- * └───────────────────────────────────────────────────────────────────────────┘
- *
- * REQUIREMENTS:
- * For best results, compile the target program using `gcc` with debug symbols:
- *     cc -rdynamic -g...
- * If you use an external lib like mlx wrap the binary (.a file) inside a shared lib (.so file) with this command
- *     cc -shared -o libwrapper.so -Wl,--whole-archive lib_to_wrap.a -Wl,--no-whole-archive
- * And change you linker flags to include the shared lib
- *     LFLAGS = -L. -lwrapper -Wl,-rpath,.
- *     LFLAGS = -Llib_folder -lwrapper -Wl,-rpath,lib_folder
- * This is to avoid injecting lib malloc calls
- *
- * SCRIPT USAGE:
- *     ./run_tester.sh target_program [args...]
- *     ./run_tester.sh gdb target_program [args...]
- *
- * MANUAL USAGE:
- * Compile the tester:
- *     gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
- *
- * Run the tester:
- *     LD_PRELOAD=./malloc_tester.so TARGET_BIN=./target_program ./target_program
- *
- * Run in GDB:
- *     LD_PRELOAD=./malloc_tester.so TARGET_BIN=./target_program gdb ./target_program
- *
- * OPTIONS:
- * Configuration can be modified live during GDB execution:
- *     set malloc_cfg.max_calls = <int>
- *     set malloc_cfg.fail_percent = <int>
- *
- * Configuration options
- * 	   max_calls        - maximum number of allocations (-1 = unlimited)
- *     max_memory       - maximum available bytes for allocations (-1 = unlimited)
- *     fail_percent     - fail probability (0–100) 10% failure by default
- *     rejected_symbols - ignored function calls by name
- */
-
 struct malloc_cfg {
 	int  max_calls;
 	int  max_memory;
@@ -64,7 +23,7 @@ struct malloc_cfg malloc_cfg = {
 	.max_calls = -1,
 	.max_memory = -1,
 	.fail_percent = 10,
-	.ignore_anonymous_functions = true,
+	.ignore_anonymous_functions = false,
 	.print_log = true
 };
 
