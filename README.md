@@ -20,7 +20,7 @@ If you're using an external static library (like MiniLibX), wrap it inside a sha
 
 ```bash
 cd lib
-gcc -shared -o libwrapper.so -Wl,--whole-archive libmlx42.a -Wl,--no-whole-archive
+cc -shared -o libwrapper.so -Wl,--whole-archive libmlx42.a -Wl,--no-whole-archive
 ```
 
 Update your linker flags accordingly:
@@ -28,8 +28,8 @@ Update your linker flags accordingly:
 ```makefile
 #make sure to specify the right folder
 LFLAGS += -Lfolder -lwrapper -Wl,-rpath,folder
-#for exemple if the wrapper is in the project root folder
-LFLAGS += -L. -lwrapper -Wl,-rpath,.
+#for exemple if the wrapper is in the lib folder
+LFLAGS += -Llib -lwrapper -Wl,-rpath,lib
 ```
 
 This avoids interfering with internal memory management in those libraries.
@@ -59,7 +59,7 @@ Or debug with GDB:
 1. **Compile the Tester:**
 
 ```bash
-gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
+cc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
 ```
 
 2. **Run the Target Program:**
