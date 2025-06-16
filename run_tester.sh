@@ -13,8 +13,6 @@ if [ -z "$1" ]; then
 	exit 1
 fi
 
-echo "Warning: make sure the targeted project is compiled with gcc and -rdynamic -g"
-
 echo "[script] Compiling malloc_tester.so..."
 gcc -fPIC -shared -o "$SO_FILE" "$SRC_FILE" -ldl -g
 
