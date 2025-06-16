@@ -9,21 +9,26 @@
 To make the most of `malloc_tester`, compile your target program with debug symbols:
 
 ```bash
-gcc -rdynamic -g -o target_program target_program.c
+cc -rdynamic -g -o target_program target_program.c
+```
+```makefile
+CFLAGS += -g
+LDFLAGS += -rdynamic
 ```
 
 If you're using an external static library (like MiniLibX), wrap it inside a shared object:
 
 ```bash
-gcc -shared -o libwrapper.so -Wl,--whole-archive lib_to_wrap.a -Wl,--no-whole-archive
+gcc -shared -o libwrapper.so -Wl,--whole-archive libmlx42.a -Wl,--no-whole-archive
 ```
 
 Update your linker flags accordingly:
 
 ```makefile
-LFLAGS = -L. -lmlxwrapper -Wl,-rpath,.
-# or
-LFLAGS = -Llib_folder -lmlxwrapper -Wl,-rpath,lib_folder
+#make sure to specify the right folder
+LFLAGS += -Lfolder -lwrapper -Wl,-rpath,folder
+#for exemple if the wrapper is in the project root folder
+LFLAGS += -L. -lwrapper -Wl,-rpath,.
 ```
 
 This avoids interfering with internal memory management in those libraries.
