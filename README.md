@@ -19,6 +19,7 @@ LDFLAGS += -rdynamic
 If you're using an external static library (like MiniLibX), wrap it inside a shared object:
 
 ```bash
+cd lib
 gcc -shared -o libwrapper.so -Wl,--whole-archive libmlx42.a -Wl,--no-whole-archive
 ```
 
