@@ -10,7 +10,7 @@ To make the most of `malloc_tester`, compile your target program with debug symb
 
 ```makefile
 CFLAGS += -g
-LDFLAGS += -rdynamic
+LDFLAGS += -rdynamic -Xlinker -export-dynamic
 ```
 
 If you're using an external static library (like MiniLibX), wrap it inside a shared object:
