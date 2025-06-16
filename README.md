@@ -8,9 +8,6 @@
 
 To make the most of `malloc_tester`, compile your target program with debug symbols:
 
-```bash
-cc -rdynamic -g -o target_program target_program.c
-```
 ```makefile
 CFLAGS += -g
 LDFLAGS += -rdynamic
@@ -19,15 +16,13 @@ LDFLAGS += -rdynamic
 If you're using an external static library (like MiniLibX), wrap it inside a shared object:
 
 ```bash
-cd lib
+#for exemple if the lib is called libmlx42.a
 cc -shared -o libwrapper.so -Wl,--whole-archive libmlx42.a -Wl,--no-whole-archive
 ```
 
 Update your linker flags accordingly:
 
 ```makefile
-#make sure to specify the right folder
-LFLAGS += -Lfolder -lwrapper -Wl,-rpath,folder
 #for exemple if the wrapper is in the lib folder
 LFLAGS += -Llib -lwrapper -Wl,-rpath,lib
 ```
@@ -84,11 +79,11 @@ set malloc_cfg.fail_percent = <int>
 
 | Variable           | Description                                         | Default     |
 |--------------------|-----------------------------------------------------|-------------|
-| `max_calls`        | Max allocation calls allowed (`-1` = unlimited)     | -1          |
-| `max_memory`       | Max bytes allowed to be allocated (`-1` = unlimited)| -1          |
-| `fail_percent`     | Percent chance that an allocation will fail (0–100) | 10          |
+| `max_calls`        | Max allocation calls allowed (`-1` = unlimited)     | `-1`        |
+| `max_memory`       | Max bytes allowed to be allocated (`-1` = unlimited)| `-1`        |
+| `fail_percent`     | Percent chance that an allocation will fail (0–100) | `10`        |
 | `rejected_symbols` | Ignore allocations from specific function names     | *(empty)*   |
-| `print_log`        | Print outup to stderr                               | true        |
+| `print_log`        | Print outup to stderr                               | `true`      |
 
 ## 📜 License
 
