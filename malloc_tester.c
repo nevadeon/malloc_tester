@@ -7,6 +7,10 @@
 #include <stdbool.h>
 #include <limits.h>
 
+#define RED     "\001\033[0;31m\002"
+#define GREEN   "\001\033[0;32m\002"
+#define RESET   "\001\033[0m\002"
+
 /**
  * ┌───────────────────────────────────────────────────────────────────────────┐
  * │                              HOW TO USE                                   │
@@ -51,7 +55,7 @@ struct malloc_cfg {
 struct malloc_cfg malloc_cfg = {
 	.max_calls = -1,
 	.max_memory = -1,
-	.fail_percent = 0
+	.fail_percent = 10
 };
 
 // If a function caller name contains any of these strings it will be ignored
@@ -96,15 +100,16 @@ static bool is_injection_allowed(Dl_info info)
 	if (strcmp(caller_path, target_path) != 0)
 		return false;
 
+	// Reject if unknown function
+	if (!info.dli_sname)
+		return false;
+
 	// Reject based on symbol name
-	if (info.dli_sname)
-	{
-		i = 0;
-		while(rejected_symbols[i]){
-			if (strstr(info.dli_sname, rejected_symbols[i]))
+	i = 0;
+	while(rejected_symbols[i]){
+		if (strstr(info.dli_sname, rejected_symbols[i]))
 			return false;
-			i++;
-		}
+		i++;
 	}
 
 	return true;
@@ -136,19 +141,19 @@ void *malloc(size_t size)
 	count++;
 
 	if (malloc_cfg.max_calls >= 0 && count > malloc_cfg.max_calls) {
-		print_alloc_status(count, size, used_memory, "DENIED (max alloc)", info.dli_sname, caller);
+		print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (max alloc)", info.dli_sname, caller);
 		return NULL;
 	}
 	if (malloc_cfg.max_memory >= 0 && used_memory > malloc_cfg.max_memory) {
-		print_alloc_status(count, size, used_memory, "DENIED (max memory)", info.dli_sname, caller);
+		print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (max memory)", info.dli_sname, caller);
 		return NULL;
 	}
 	if (malloc_cfg.fail_percent >= 0 && (rand() % 100) < malloc_cfg.fail_percent) {
-		print_alloc_status(count, size, used_memory, "DENIED (random failure)", info.dli_sname, caller);
+		print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (random failure)", info.dli_sname, caller);
 		return NULL;
 	}
 
 	used_memory += size;
-	print_alloc_status(count, size, used_memory, "ALLOWED", info.dli_sname, caller);
+	print_alloc_status(count, size, used_memory, GREEN"ALLOWED"RESET, info.dli_sname, caller);
 	return real_malloc(size);
 }
