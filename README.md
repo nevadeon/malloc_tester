@@ -68,11 +68,6 @@ gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
 LD_PRELOAD=./malloc_tester.so TARGET_BIN=./target_program ./target_program
 ```
 
-3. **Run in GDB:**
-
-```bash
-LD_PRELOAD=./malloc_tester.so TARGET_BIN=./target_program gdb ./target_program
-```
 
 ---
 
