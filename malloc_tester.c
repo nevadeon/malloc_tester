@@ -18,13 +18,19 @@
  *
  * REQUIREMENTS:
  * For best results, compile the target program using `gcc` with debug symbols:
- *     gcc -rdynamic -g target.c -o target_program
+ *     gcc -rdynamic -g...
+ * If you use an external lib like mlx wrap the binary (.a file) inside a shared lib (.so file) with this command
+ *     gcc -shared -o libwrapper.so -Wl,--whole-archive lib_to_wrap.a -Wl,--no-whole-archive
+ * And change you linker flags to include the shared lib
+ *     LFLAGS = -L. -lmlxwrapper -Wl,-rpath,.
+ *     LFLAGS = -Llib_folder -lmlxwrapper -Wl,-rpath,lib_folder
+ * This is to avoid injecting lib malloc calls
  *
- * RECOMMENDED:
- * Use the provided script to simplify setup and execution:
+ * SCRIPT USAGE:
  *     ./run_tester.sh target_program [args...]
  *     ./run_tester.sh gdb target_program [args...]
  *
+ * MANUAL USAGE:
  * Compile the tester:
  *     gcc -fPIC -shared -o malloc_tester.so malloc_tester.c -ldl -g
  *
@@ -34,35 +40,41 @@
  * Run in GDB:
  *     LD_PRELOAD=./malloc_tester.so TARGET_BIN=./target_program gdb ./target_program
  *
+ * OPTIONS:
  * Configuration can be modified live during GDB execution:
  *     set malloc_cfg.max_calls = <int>
  *     set malloc_cfg.fail_percent = <int>
- *     set malloc_cfg.max_memory = <int>
  *
  * Configuration options
  * 	   max_calls        - maximum number of allocations (-1 = unlimited)
  *     max_memory       - maximum available bytes for allocations (-1 = unlimited)
- *     fail_percent     - fail probability (0–100)
- *     rejected_symbols - ignored function calls
+ *     fail_percent     - fail probability (0–100) 10% failure by default
+ *     rejected_symbols - ignored function calls by name
  */
 
 struct malloc_cfg {
-	int max_calls;
-	int max_memory;
-	int fail_percent;
+	int  max_calls;
+	int  max_memory;
+	int  fail_percent;
+	bool ignore_anonymous_functions;
+	bool print_log;
 };
 
 struct malloc_cfg malloc_cfg = {
 	.max_calls = -1,
 	.max_memory = -1,
-	.fail_percent = 10
+	.fail_percent = 10,
+	.ignore_anonymous_functions = true,
+	.print_log = true
 };
 
 // If a function caller name contains any of these strings it will be ignored
-const char *rejected_symbols[] = {
-	"mlx",
-	"MLX",
+const char *ignored_function_names[] = {
 	"_IO_file_doallocate",
+	"gladLoadGLLoader",
+	"lodepng_load_file",
+	"lodepng_decode",
+	"mlx",
 	NULL
 };
 
@@ -76,14 +88,15 @@ static void print_alloc_status(
 )
 {
 	fprintf(stderr,
-		"[malloc] call #%d | size: %-4zu | total: %-4zu | from: (%p) %s | %s\n",
+		"[malloc] call #%-3d | size: %-5zu | total: %-5zu | from: (%p) %-20s | %s\n",
 		count, size, total, caller_address, caller ? caller : "unknown", status);
 }
 
 static bool is_injection_allowed(Dl_info info)
 {
 	const char *target_binary;
-	char caller_path[PATH_MAX];
+	char self_exe_path[PATH_MAX];
+	char fname_path[PATH_MAX];
 	char target_path[PATH_MAX];
 	int  i;
 
@@ -92,24 +105,32 @@ static bool is_injection_allowed(Dl_info info)
 		return false;
 	if (!realpath(target_binary, target_path))
 		return false;
-	if (!realpath("/proc/self/exe", caller_path))
+	if (!realpath(info.dli_fname, fname_path))
 		return false;
-	// fprintf(stderr, "caller=%s target=%s\n", caller_path, target_path);
+	if (!realpath("/proc/self/exe", self_exe_path))
+		return false;
 
 	// Reject if the caller is not from the target binary
-	if (strcmp(caller_path, target_path) != 0)
+	if (strcmp(self_exe_path, target_path) != 0)
+		return false;
+	if (strcmp(fname_path, target_path) != 0)
 		return false;
 
-	// Reject if unknown function
-	if (!info.dli_sname)
+	// fprintf(stderr, "caller: %s | sname: %s | fname: %s\n", self_exe_path, info.dli_sname, info.dli_fname);
+
+	// Reject if anonymous function
+	if (malloc_cfg.ignore_anonymous_functions && !info.dli_sname)
 		return false;
 
-	// Reject based on symbol name
-	i = 0;
-	while(rejected_symbols[i]){
-		if (strstr(info.dli_sname, rejected_symbols[i]))
-			return false;
-		i++;
+	// Reject based on function name
+	if (info.dli_sname)
+	{
+		i = 0;
+		while(ignored_function_names[i]){
+			if (strstr(info.dli_sname, ignored_function_names[i]))
+				return false;
+			i++;
+		}
 	}
 
 	return true;
@@ -133,27 +154,29 @@ void *malloc(size_t size)
 		return real_malloc(size);
 	if (!dladdr(caller, &info))
 		return real_malloc(size);
+
 	if (!is_injection_allowed(info))
 		return real_malloc(size);
 
-	// fprintf(stderr, "address=%p bin=%s name=%s\n", caller, info.dli_fname, info.dli_sname);
-
 	count++;
-
 	if (malloc_cfg.max_calls >= 0 && count > malloc_cfg.max_calls) {
-		print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (max alloc)", info.dli_sname, caller);
+		if (malloc_cfg.print_log)
+			print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (max alloc)", info.dli_sname, caller);
 		return NULL;
 	}
 	if (malloc_cfg.max_memory >= 0 && used_memory > malloc_cfg.max_memory) {
-		print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (max memory)", info.dli_sname, caller);
+		if (malloc_cfg.print_log)
+			print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (max memory)", info.dli_sname, caller);
 		return NULL;
 	}
 	if (malloc_cfg.fail_percent >= 0 && (rand() % 100) < malloc_cfg.fail_percent) {
-		print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (random failure)", info.dli_sname, caller);
+		if (malloc_cfg.print_log)
+			print_alloc_status(count, size, used_memory, RED"DENIED"RESET" (random failure)", info.dli_sname, caller);
 		return NULL;
 	}
 
 	used_memory += size;
-	print_alloc_status(count, size, used_memory, GREEN"ALLOWED"RESET, info.dli_sname, caller);
+	if (malloc_cfg.print_log)
+		print_alloc_status(count, size, used_memory, GREEN"ALLOWED"RESET, info.dli_sname, caller);
 	return real_malloc(size);
 }
