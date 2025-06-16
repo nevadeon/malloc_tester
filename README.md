@@ -6,7 +6,7 @@
 
 ## 📦 Requirements
 
-To make the most of `malloc_tester`, compile your target program with debug symbols:
+It's not mandatory but to make the most of `malloc_tester`, compile your target program with debug symbols:
 
 ```makefile
 CFLAGS += -g
@@ -82,7 +82,7 @@ set malloc_cfg.fail_percent = <int>
 | `max_calls`        | Max allocation calls allowed (`-1` = unlimited)     | `-1`        |
 | `max_memory`       | Max bytes allowed to be allocated (`-1` = unlimited)| `-1`        |
 | `fail_percent`     | Percent chance that an allocation will fail (0–100) | `10`        |
-| `rejected_symbols` | Ignore allocations from specific function names     | *(empty)*   |
+| `rejected_symbols` | Ignore allocations from specific function names     | `*(empty)*` |
 | `print_log`        | Print outup to stderr                               | `true`      |
 
 ## 📜 License
